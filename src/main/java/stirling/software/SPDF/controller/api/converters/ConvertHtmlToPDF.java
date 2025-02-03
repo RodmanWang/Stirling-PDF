@@ -14,6 +14,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import stirling.software.SPDF.model.api.converters.HTMLToPdfRequest;
+import stirling.software.SPDF.model.ApplicationProperties;
+import stirling.software.SPDF.service.CustomPDDocumentFactory;
 import stirling.software.SPDF.utils.FileToPdf;
 import stirling.software.SPDF.utils.WebResponseUtils;
 
@@ -22,9 +24,21 @@ import stirling.software.SPDF.utils.WebResponseUtils;
 @RequestMapping("/api/v1/convert")
 public class ConvertHtmlToPDF {
 
+    private final boolean bookAndHtmlFormatsInstalled;
+
+    private final CustomPDDocumentFactory pdfDocumentFactory;
+
+	private final ApplicationProperties applicationProperties;
+
     @Autowired
-    @Qualifier("bookAndHtmlFormatsInstalled")
-    private boolean bookAndHtmlFormatsInstalled;
+    public ConvertHtmlToPDF(
+            CustomPDDocumentFactory pdfDocumentFactory,
+            @Qualifier("bookAndHtmlFormatsInstalled") boolean bookAndHtmlFormatsInstalled,
+			ApplicationProperties applicationProperties) {
+        this.pdfDocumentFactory = pdfDocumentFactory;
+        this.bookAndHtmlFormatsInstalled = bookAndHtmlFormatsInstalled;
+		this.applicationProperties = applicationProperties;
+    }
 
     @PostMapping(consumes = "multipart/form-data", value = "/html/pdf")
     @Operation(
@@ -45,12 +59,18 @@ public class ConvertHtmlToPDF {
                 || (!originalFilename.endsWith(".html") && !originalFilename.endsWith(".zip"))) {
             throw new IllegalArgumentException("File must be either .html or .zip format.");
         }
+
+		boolean disableSanitize = Boolean.TRUE.equals(applicationProperties.getSystem().getDisableSanitize());
+
         byte[] pdfBytes =
                 FileToPdf.convertHtmlToPdf(
                         request,
                         fileInput.getBytes(),
                         originalFilename,
-                        bookAndHtmlFormatsInstalled);
+                        bookAndHtmlFormatsInstalled,
+						disableSanitize);
+
+        pdfBytes = pdfDocumentFactory.createNewBytesBasedOnOldDocument(pdfBytes);
 
         String outputFilename =
                 originalFilename.replaceFirst("[.][^.]+$", "")
