@@ -212,6 +212,8 @@ main() {
 
     cd "$PROJECT_ROOT"
 
+	export DOCKER_CLI_EXPERIMENTAL=enabled
+	export COMPOSE_DOCKER_CLI_BUILD=0
     export DOCKER_ENABLE_SECURITY=false
     # Run the gradlew build command and check if it fails
     if ! ./gradlew clean build; then
@@ -250,7 +252,7 @@ main() {
     # Building Docker images with security enabled
     # docker build --no-cache --pull --build-arg VERSION_TAG=alpha -t stirlingtools/stirling-pdf:latest -f ./Dockerfile .
     # docker build --no-cache --pull --build-arg VERSION_TAG=alpha -t stirlingtools/stirling-pdf:latest-ultra-lite -f ./Dockerfile.ultra-lite .
-    docker build --no-cache --pull --build-arg VERSION_TAG=alpha -t stirlingtools/stirling-pdf:latest-fat -f ./Dockerfile.fat .
+    docker build --no-cache --pull --build-arg VERSION_TAG=alpha -t docker.stirlingpdf.com/stirlingtools/stirling-pdf:latest-fat -f ./Dockerfile.fat .
 
 
     # Test each configuration with security
@@ -329,6 +331,18 @@ main() {
     fi
 
     docker-compose -f "./exampleYmlFiles/test_cicd.yml" down
+
+    run_tests "Stirling-PDF-Fat-Disable-Endpoints" "./exampleYmlFiles/docker-compose-latest-fat-endpoints-disabled.yml"
+
+    echo "Testing disabled endpoints..."
+    if ./testing/test_disabledEndpoints.sh -f ./testing/endpoints.txt -b http://localhost:8080; then
+        passed_tests+=("Disabled-Endpoints")
+    else
+        failed_tests+=("Disabled-Endpoints")
+        echo "Disabled Endpoints tests failed"
+    fi
+
+    docker-compose -f "./exampleYmlFiles/docker-compose-latest-fat-endpoints-disabled.yml" down
 
     # Report results
     echo "All tests completed in $SECONDS seconds."
