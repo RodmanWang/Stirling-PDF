@@ -63,6 +63,8 @@ public class PostHogService {
         if (!applicationProperties.getSystem().isAnalyticsEnabled()) {
             return;
         }
+
+        properties.put("app_version", appVersion);
         postHog.capture(uniqueId, eventName, properties);
     }
 
@@ -334,27 +336,40 @@ public class PostHogService {
         addIfNotEmpty(
                 properties,
                 "enterpriseEdition_enabled",
-                applicationProperties.getEnterpriseEdition().isEnabled());
-        if (applicationProperties.getEnterpriseEdition().isEnabled()) {
+                applicationProperties.getPremium().isEnabled());
+        if (applicationProperties.getPremium().isEnabled()) {
             addIfNotEmpty(
                     properties,
                     "enterpriseEdition_customMetadata_autoUpdateMetadata",
                     applicationProperties
-                            .getEnterpriseEdition()
+                            .getPremium()
+                            .getProFeatures()
                             .getCustomMetadata()
                             .isAutoUpdateMetadata());
             addIfNotEmpty(
                     properties,
                     "enterpriseEdition_customMetadata_author",
-                    applicationProperties.getEnterpriseEdition().getCustomMetadata().getAuthor());
+                    applicationProperties
+                            .getPremium()
+                            .getProFeatures()
+                            .getCustomMetadata()
+                            .getAuthor());
             addIfNotEmpty(
                     properties,
                     "enterpriseEdition_customMetadata_creator",
-                    applicationProperties.getEnterpriseEdition().getCustomMetadata().getCreator());
+                    applicationProperties
+                            .getPremium()
+                            .getProFeatures()
+                            .getCustomMetadata()
+                            .getCreator());
             addIfNotEmpty(
                     properties,
                     "enterpriseEdition_customMetadata_producer",
-                    applicationProperties.getEnterpriseEdition().getCustomMetadata().getProducer());
+                    applicationProperties
+                            .getPremium()
+                            .getProFeatures()
+                            .getCustomMetadata()
+                            .getProducer());
         }
         // Capture AutoPipeline properties
         addIfNotEmpty(
