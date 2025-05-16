@@ -12,7 +12,6 @@ import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
 import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import org.apache.pdfbox.pdmodel.interactive.form.PDField;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,6 +23,8 @@ import io.github.pixee.security.Filenames;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import lombok.RequiredArgsConstructor;
+
 import stirling.software.SPDF.model.api.security.SanitizePdfRequest;
 import stirling.software.SPDF.service.CustomPDFDocumentFactory;
 import stirling.software.SPDF.utils.WebResponseUtils;
@@ -31,14 +32,10 @@ import stirling.software.SPDF.utils.WebResponseUtils;
 @RestController
 @RequestMapping("/api/v1/security")
 @Tag(name = "Security", description = "Security APIs")
+@RequiredArgsConstructor
 public class SanitizeController {
 
     private final CustomPDFDocumentFactory pdfDocumentFactory;
-
-    @Autowired
-    public SanitizeController(CustomPDFDocumentFactory pdfDocumentFactory) {
-        this.pdfDocumentFactory = pdfDocumentFactory;
-    }
 
     @PostMapping(consumes = "multipart/form-data", value = "/sanitize-pdf")
     @Operation(
@@ -49,13 +46,14 @@ public class SanitizeController {
     public ResponseEntity<byte[]> sanitizePDF(@ModelAttribute SanitizePdfRequest request)
             throws IOException {
         MultipartFile inputFile = request.getFileInput();
-        boolean removeJavaScript = request.isRemoveJavaScript();
-        boolean removeEmbeddedFiles = request.isRemoveEmbeddedFiles();
-        boolean removeMetadata = request.isRemoveMetadata();
-        boolean removeLinks = request.isRemoveLinks();
-        boolean removeFonts = request.isRemoveFonts();
+        boolean removeJavaScript = Boolean.TRUE.equals(request.getRemoveJavaScript());
+        boolean removeEmbeddedFiles = Boolean.TRUE.equals(request.getRemoveEmbeddedFiles());
+        boolean removeXMPMetadata = Boolean.TRUE.equals(request.getRemoveXMPMetadata());
+        boolean removeMetadata = Boolean.TRUE.equals(request.getRemoveMetadata());
+        boolean removeLinks = Boolean.TRUE.equals(request.getRemoveLinks());
+        boolean removeFonts = Boolean.TRUE.equals(request.getRemoveFonts());
 
-        PDDocument document = pdfDocumentFactory.load(inputFile);
+        PDDocument document = pdfDocumentFactory.load(inputFile, true);
         if (removeJavaScript) {
             sanitizeJavaScript(document);
         }
@@ -64,8 +62,12 @@ public class SanitizeController {
             sanitizeEmbeddedFiles(document);
         }
 
+        if (removeXMPMetadata) {
+            sanitizeXMPMetadata(document);
+        }
+
         if (removeMetadata) {
-            sanitizeMetadata(document);
+            sanitizeDocumentInfoMetadata(document);
         }
 
         if (removeLinks) {
@@ -145,12 +147,20 @@ public class SanitizeController {
         }
     }
 
-    private void sanitizeMetadata(PDDocument document) {
+    private void sanitizeXMPMetadata(PDDocument document) {
         if (document.getDocumentCatalog() != null) {
             PDMetadata metadata = document.getDocumentCatalog().getMetadata();
             if (metadata != null) {
                 document.getDocumentCatalog().setMetadata(null);
             }
+        }
+    }
+
+    private void sanitizeDocumentInfoMetadata(PDDocument document) {
+        PDDocumentInformation docInfo = document.getDocumentInformation();
+        if (docInfo != null) {
+            PDDocumentInformation newInfo = new PDDocumentInformation();
+            document.setDocumentInformation(newInfo);
         }
     }
 

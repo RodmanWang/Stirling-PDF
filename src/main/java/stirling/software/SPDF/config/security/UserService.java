@@ -3,7 +3,6 @@ package stirling.software.SPDF.config.security;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -20,6 +19,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import stirling.software.SPDF.config.interfaces.DatabaseInterface;
@@ -33,6 +33,7 @@ import stirling.software.SPDF.repository.UserRepository;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class UserService implements UserServiceInterface {
 
     private final UserRepository userRepository;
@@ -48,23 +49,6 @@ public class UserService implements UserServiceInterface {
     private final DatabaseInterface databaseService;
 
     private final ApplicationProperties applicationProperties;
-
-    public UserService(
-            UserRepository userRepository,
-            AuthorityRepository authorityRepository,
-            PasswordEncoder passwordEncoder,
-            MessageSource messageSource,
-            SessionPersistentRegistry sessionRegistry,
-            DatabaseInterface databaseService,
-            ApplicationProperties applicationProperties) {
-        this.userRepository = userRepository;
-        this.authorityRepository = authorityRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.messageSource = messageSource;
-        this.sessionRegistry = sessionRegistry;
-        this.databaseService = databaseService;
-        this.applicationProperties = applicationProperties;
-    }
 
     @Transactional
     public void migrateOauth2ToSSO() {
@@ -108,7 +92,7 @@ public class UserService implements UserServiceInterface {
         // Convert each Authority object into a SimpleGrantedAuthority object.
         return user.getAuthorities().stream()
                 .map((Authority authority) -> new SimpleGrantedAuthority(authority.getAuthority()))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private String generateApiKey() {
@@ -206,6 +190,7 @@ public class UserService implements UserServiceInterface {
         user.setPassword(passwordEncoder.encode(password));
         user.setEnabled(true);
         user.setAuthenticationType(AuthenticationType.WEB);
+        user.addAuthority(new Authority(Role.USER.getRoleId(), user));
         userRepository.save(user);
         databaseService.exportDatabase();
     }
@@ -229,6 +214,22 @@ public class UserService implements UserServiceInterface {
     public void saveUser(String username, String password, String role)
             throws IllegalArgumentException, SQLException, UnsupportedProviderException {
         saveUser(username, password, role, false);
+    }
+
+    public void saveUser(String username, String password, boolean firstLogin, boolean enabled)
+            throws IllegalArgumentException, SQLException, UnsupportedProviderException {
+        if (!isUsernameValid(username)) {
+            throw new IllegalArgumentException(getInvalidUsernameMessage());
+        }
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password));
+        user.addAuthority(new Authority(Role.USER.getRoleId(), user));
+        user.setEnabled(enabled);
+        user.setAuthenticationType(AuthenticationType.WEB);
+        user.setFirstLogin(firstLogin);
+        userRepository.save(user);
+        databaseService.exportDatabase();
     }
 
     public void deleteUser(String username) {
@@ -353,6 +354,7 @@ public class UserService implements UserServiceInterface {
 
         List<String> notAllowedUserList = new ArrayList<>();
         notAllowedUserList.add("ALL_USERS".toLowerCase());
+        notAllowedUserList.add("anonymoususer");
         boolean notAllowedUser = notAllowedUserList.contains(username.toLowerCase());
         return (isValidSimpleUsername || isValidEmail) && !notAllowedUser;
     }
@@ -406,6 +408,8 @@ public class UserService implements UserServiceInterface {
 
         if (principal instanceof UserDetails detailsUser) {
             return detailsUser.getUsername();
+        } else if (principal instanceof stirling.software.SPDF.model.User domainUser) {
+            return domainUser.getUsername();
         } else if (principal instanceof OAuth2User oAuth2User) {
             return oAuth2User.getAttribute(
                     applicationProperties.getSecurity().getOauth2().getUseAsUsername());
@@ -458,6 +462,12 @@ public class UserService implements UserServiceInterface {
 
     @Override
     public long getTotalUsersCount() {
-        return userRepository.count();
+        // Count all users in the database
+        long userCount = userRepository.count();
+        // Exclude the internal API user from the count
+        if (findByUsernameIgnoreCase(Role.INTERNAL_API_USER.getRoleId()).isPresent()) {
+            userCount -= 1;
+        }
+        return userCount;
     }
 }
