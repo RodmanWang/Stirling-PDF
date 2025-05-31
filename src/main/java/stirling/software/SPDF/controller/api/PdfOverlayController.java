@@ -12,7 +12,6 @@ import java.util.Map;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.multipdf.Overlay;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -25,22 +24,20 @@ import io.github.pixee.security.Filenames;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import lombok.RequiredArgsConstructor;
+
 import stirling.software.SPDF.model.api.general.OverlayPdfsRequest;
-import stirling.software.SPDF.service.CustomPDFDocumentFactory;
-import stirling.software.SPDF.utils.GeneralUtils;
-import stirling.software.SPDF.utils.WebResponseUtils;
+import stirling.software.common.service.CustomPDFDocumentFactory;
+import stirling.software.common.util.GeneralUtils;
+import stirling.software.common.util.WebResponseUtils;
 
 @RestController
 @RequestMapping("/api/v1/general")
 @Tag(name = "General", description = "General APIs")
+@RequiredArgsConstructor
 public class PdfOverlayController {
 
     private final CustomPDFDocumentFactory pdfDocumentFactory;
-
-    @Autowired
-    public PdfOverlayController(CustomPDFDocumentFactory pdfDocumentFactory) {
-        this.pdfDocumentFactory = pdfDocumentFactory;
-    }
 
     @PostMapping(value = "/overlay-pdfs", consumes = "multipart/form-data")
     @Operation(

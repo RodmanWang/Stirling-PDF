@@ -7,13 +7,15 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import stirling.software.SPDF.model.ApplicationProperties;
 import stirling.software.SPDF.model.AttemptCounter;
+import stirling.software.common.model.ApplicationProperties;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class LoginAttemptService {
 
     private final ApplicationProperties applicationProperties;
@@ -25,10 +27,6 @@ public class LoginAttemptService {
     private ConcurrentHashMap<String, AttemptCounter> attemptsCache;
 
     private boolean isBlockedEnabled = true;
-
-    public LoginAttemptService(ApplicationProperties applicationProperties) {
-        this.applicationProperties = applicationProperties;
-    }
 
     @PostConstruct
     public void init() {

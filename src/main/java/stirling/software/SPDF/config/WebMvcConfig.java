@@ -5,14 +5,15 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import lombok.RequiredArgsConstructor;
+
+import stirling.software.common.configuration.InstallationPathConfig;
+
 @Configuration
+@RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final EndpointInterceptor endpointInterceptor;
-
-    public WebMvcConfig(EndpointInterceptor endpointInterceptor) {
-        this.endpointInterceptor = endpointInterceptor;
-    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {

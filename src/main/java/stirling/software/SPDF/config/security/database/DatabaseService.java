@@ -27,11 +27,11 @@ import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
 
-import stirling.software.SPDF.config.InstallationPathConfig;
 import stirling.software.SPDF.config.interfaces.DatabaseInterface;
-import stirling.software.SPDF.model.ApplicationProperties;
 import stirling.software.SPDF.model.exception.BackupNotFoundException;
-import stirling.software.SPDF.utils.FileInfo;
+import stirling.software.common.configuration.InstallationPathConfig;
+import stirling.software.common.model.ApplicationProperties;
+import stirling.software.common.model.FileInfo;
 
 @Slf4j
 @Service
@@ -41,13 +41,14 @@ public class DatabaseService implements DatabaseInterface {
     public static final String SQL_SUFFIX = ".sql";
     private final Path BACKUP_DIR;
 
-    private final ApplicationProperties applicationProperties;
+    private final ApplicationProperties.Datasource datasourceProps;
     private final DataSource dataSource;
 
-    public DatabaseService(ApplicationProperties applicationProperties, DataSource dataSource) {
+    public DatabaseService(
+            ApplicationProperties.Datasource datasourceProps, DataSource dataSource) {
         this.BACKUP_DIR =
                 Paths.get(InstallationPathConfig.getConfigPath(), "db", "backup").normalize();
-        this.applicationProperties = applicationProperties;
+        this.datasourceProps = datasourceProps;
         this.dataSource = dataSource;
     }
 
@@ -238,10 +239,33 @@ public class DatabaseService implements DatabaseInterface {
     }
 
     private boolean isH2Database() {
-        ApplicationProperties.Datasource datasource =
-                applicationProperties.getSystem().getDatasource();
-        return !datasource.isEnableCustomDatabase()
-                || datasource.getType().equalsIgnoreCase(ApplicationProperties.Driver.H2.name());
+        boolean isTypeH2 =
+                datasourceProps.getType().equalsIgnoreCase(ApplicationProperties.Driver.H2.name());
+        boolean isDBUrlH2 =
+                datasourceProps.getCustomDatabaseUrl().contains("h2")
+                        || datasourceProps.getCustomDatabaseUrl().contains("H2");
+        boolean isCustomDatabase = datasourceProps.isEnableCustomDatabase();
+
+        if (isCustomDatabase) {
+            if (isTypeH2 && !isDBUrlH2) {
+                log.warn(
+                        "Datasource type is H2, but the URL does not contain 'h2'. "
+                                + "Please check your configuration.");
+                throw new IllegalStateException(
+                        "Datasource type is H2, but the URL does not contain 'h2'. Please check"
+                                + " your configuration.");
+            } else if (!isTypeH2 && isDBUrlH2) {
+                log.warn(
+                        "Datasource URL contains 'h2', but the type is not H2. "
+                                + "Please check your configuration.");
+                throw new IllegalStateException(
+                        "Datasource URL contains 'h2', but the type is not H2. Please check your"
+                                + " configuration.");
+            }
+        }
+        boolean isH2 = isTypeH2 && isDBUrlH2;
+
+        return !isCustomDatabase || isH2;
     }
 
     /**

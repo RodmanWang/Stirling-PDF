@@ -26,7 +26,7 @@ import org.springframework.security.web.authentication.rememberme.PersistentToke
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.savedrequest.NullRequestCache;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,22 +37,22 @@ import stirling.software.SPDF.config.security.saml2.CustomSaml2AuthenticationFai
 import stirling.software.SPDF.config.security.saml2.CustomSaml2AuthenticationSuccessHandler;
 import stirling.software.SPDF.config.security.saml2.CustomSaml2ResponseAuthenticationConverter;
 import stirling.software.SPDF.config.security.session.SessionPersistentRegistry;
-import stirling.software.SPDF.model.ApplicationProperties;
 import stirling.software.SPDF.model.User;
 import stirling.software.SPDF.repository.JPATokenRepositoryImpl;
 import stirling.software.SPDF.repository.PersistentLoginRepository;
+import stirling.software.common.model.ApplicationProperties;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @Slf4j
-@DependsOn("runningEE")
+@DependsOn("runningProOrHigher")
 public class SecurityConfiguration {
 
     private final CustomUserDetailsService userDetailsService;
     private final UserService userService;
     private final boolean loginEnabledValue;
-    private final boolean runningEE;
+    private final boolean runningProOrHigher;
 
     private final ApplicationProperties applicationProperties;
     private final UserAuthenticationFilter userAuthenticationFilter;
@@ -69,7 +69,7 @@ public class SecurityConfiguration {
             CustomUserDetailsService userDetailsService,
             @Lazy UserService userService,
             @Qualifier("loginEnabled") boolean loginEnabledValue,
-            @Qualifier("runningEE") boolean runningEE,
+            @Qualifier("runningProOrHigher") boolean runningProOrHigher,
             ApplicationProperties applicationProperties,
             UserAuthenticationFilter userAuthenticationFilter,
             LoginAttemptService loginAttemptService,
@@ -83,7 +83,7 @@ public class SecurityConfiguration {
         this.userDetailsService = userDetailsService;
         this.userService = userService;
         this.loginEnabledValue = loginEnabledValue;
-        this.runningEE = runningEE;
+        this.runningProOrHigher = runningProOrHigher;
         this.applicationProperties = applicationProperties;
         this.userAuthenticationFilter = userAuthenticationFilter;
         this.loginAttemptService = loginAttemptService;
@@ -157,7 +157,9 @@ public class SecurityConfiguration {
             http.requestCache(requestCache -> requestCache.requestCache(new NullRequestCache()));
             http.logout(
                     logout ->
-                            logout.logoutRequestMatcher(new AntPathRequestMatcher("/logout"))
+                            logout.logoutRequestMatcher(
+                                            PathPatternRequestMatcher.withDefaults()
+                                                    .matcher("/logout"))
                                     .logoutSuccessHandler(
                                             new CustomLogoutSuccessHandler(applicationProperties))
                                     .clearAuthentication(true)
@@ -254,7 +256,7 @@ public class SecurityConfiguration {
                                         .permitAll());
             }
             // Handle SAML
-            if (applicationProperties.getSecurity().isSaml2Active() && runningEE) {
+            if (applicationProperties.getSecurity().isSaml2Active() && runningProOrHigher) {
                 // Configure the authentication provider
                 OpenSaml4AuthenticationProvider authenticationProvider =
                         new OpenSaml4AuthenticationProvider();

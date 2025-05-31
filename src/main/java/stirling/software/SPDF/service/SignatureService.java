@@ -7,15 +7,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
 
 import lombok.extern.slf4j.Slf4j;
 
-import stirling.software.SPDF.config.InstallationPathConfig;
 import stirling.software.SPDF.model.SignatureFile;
+import stirling.software.common.configuration.InstallationPathConfig;
 
 @Service
 @Slf4j
@@ -70,7 +69,7 @@ public class SignatureService {
         return Files.list(folder)
                 .filter(path -> isImageFile(path))
                 .map(path -> new SignatureFile(path.getFileName().toString(), category))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public byte[] getSignatureBytes(String username, String fileName) throws IOException {

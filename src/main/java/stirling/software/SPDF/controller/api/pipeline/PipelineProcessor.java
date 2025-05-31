@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -37,6 +36,7 @@ import stirling.software.SPDF.model.PipelineConfig;
 import stirling.software.SPDF.model.PipelineOperation;
 import stirling.software.SPDF.model.PipelineResult;
 import stirling.software.SPDF.model.Role;
+import stirling.software.common.service.UserServiceInterface;
 
 @Service
 @Slf4j
@@ -94,6 +94,7 @@ public class PipelineProcessor {
         ByteArrayOutputStream logStream = new ByteArrayOutputStream();
         PrintStream logPrintStream = new PrintStream(logStream);
         boolean hasErrors = false;
+        boolean filtersApplied = false;
         for (PipelineOperation pipelineOperation : config.getOperations()) {
             String operation = pipelineOperation.getOperation();
             boolean isMultiInputOperation = apiDocService.isMultiInput(operation);
@@ -113,7 +114,8 @@ public class PipelineProcessor {
                 for (Resource file : outputFiles) {
                     boolean hasInputFileType = false;
                     for (String extension : inputFileTypes) {
-                        if ("ALL".equals(extension) || file.getFilename().endsWith(extension)) {
+                        if ("ALL".equals(extension)
+                                || file.getFilename().toLowerCase().endsWith(extension)) {
                             hasInputFileType = true;
                             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
                             body.add("fileInput", file);
@@ -134,7 +136,7 @@ public class PipelineProcessor {
                             if (operation.startsWith("filter-")
                                     && (response.getBody() == null
                                             || response.getBody().length == 0)) {
-                                result.setFiltersApplied(true);
+                                filtersApplied = true;
                                 log.info("Skipping file due to filtering {}", operation);
                                 continue;
                             }
@@ -167,8 +169,10 @@ public class PipelineProcessor {
                                     .filter(
                                             file ->
                                                     finalinputFileTypes.stream()
-                                                            .anyMatch(file.getFilename()::endsWith))
-                                    .collect(Collectors.toList());
+                                                            .anyMatch(
+                                                                    file.getFilename().toLowerCase()
+                                                                            ::endsWith))
+                                    .toList();
                 }
                 // Check if there are matching files
                 if (!matchingFiles.isEmpty()) {
@@ -213,12 +217,13 @@ public class PipelineProcessor {
             log.error("Errors occurred during processing. Log: {}", logStream.toString());
         }
         result.setHasErrors(hasErrors);
-        result.setFiltersApplied(hasErrors);
+        result.setFiltersApplied(filtersApplied);
         result.setOutputFiles(outputFiles);
         return result;
     }
 
-    private ResponseEntity<byte[]> sendWebRequest(String url, MultiValueMap<String, Object> body) {
+    /* package */ ResponseEntity<byte[]> sendWebRequest(
+            String url, MultiValueMap<String, Object> body) {
         RestTemplate restTemplate = new RestTemplate();
         // Set up headers, including API key
         HttpHeaders headers = new HttpHeaders();

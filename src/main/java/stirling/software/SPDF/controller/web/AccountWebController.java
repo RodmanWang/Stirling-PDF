@@ -1,6 +1,6 @@
 package stirling.software.SPDF.controller.web;
 
-import static stirling.software.SPDF.utils.validation.Validator.validateProvider;
+import static stirling.software.common.util.ProviderUtils.validateProvider;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -10,8 +10,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -31,19 +31,19 @@ import lombok.extern.slf4j.Slf4j;
 
 import stirling.software.SPDF.config.security.saml2.CustomSaml2AuthenticatedPrincipal;
 import stirling.software.SPDF.config.security.session.SessionPersistentRegistry;
-import stirling.software.SPDF.model.ApplicationProperties;
-import stirling.software.SPDF.model.ApplicationProperties.Security;
-import stirling.software.SPDF.model.ApplicationProperties.Security.OAUTH2;
-import stirling.software.SPDF.model.ApplicationProperties.Security.OAUTH2.Client;
-import stirling.software.SPDF.model.ApplicationProperties.Security.SAML2;
 import stirling.software.SPDF.model.Authority;
 import stirling.software.SPDF.model.Role;
 import stirling.software.SPDF.model.SessionEntity;
 import stirling.software.SPDF.model.User;
-import stirling.software.SPDF.model.provider.GitHubProvider;
-import stirling.software.SPDF.model.provider.GoogleProvider;
-import stirling.software.SPDF.model.provider.KeycloakProvider;
 import stirling.software.SPDF.repository.UserRepository;
+import stirling.software.common.model.ApplicationProperties;
+import stirling.software.common.model.ApplicationProperties.Security;
+import stirling.software.common.model.ApplicationProperties.Security.OAUTH2;
+import stirling.software.common.model.ApplicationProperties.Security.OAUTH2.Client;
+import stirling.software.common.model.ApplicationProperties.Security.SAML2;
+import stirling.software.common.model.oauth2.GitHubProvider;
+import stirling.software.common.model.oauth2.GoogleProvider;
+import stirling.software.common.model.oauth2.KeycloakProvider;
 
 @Controller
 @Slf4j
@@ -56,14 +56,17 @@ public class AccountWebController {
     private final SessionPersistentRegistry sessionPersistentRegistry;
     // Assuming you have a repository for user operations
     private final UserRepository userRepository;
+    private final boolean runningEE;
 
     public AccountWebController(
             ApplicationProperties applicationProperties,
             SessionPersistentRegistry sessionPersistentRegistry,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            @Qualifier("runningEE") boolean runningEE) {
         this.applicationProperties = applicationProperties;
         this.sessionPersistentRegistry = sessionPersistentRegistry;
         this.userRepository = userRepository;
+        this.runningEE = runningEE;
     }
 
     @GetMapping("/login")
@@ -118,11 +121,11 @@ public class AccountWebController {
 
         if (securityProps.isSaml2Active()
                 && applicationProperties.getSystem().getEnableAlphaFunctionality()
-                && applicationProperties.getEnterpriseEdition().isEnabled()) {
+                && applicationProperties.getPremium().isEnabled()) {
             String samlIdp = saml2.getProvider();
             String saml2AuthenticationPath = "/saml2/authenticate/" + saml2.getRegistrationId();
 
-            if (applicationProperties.getEnterpriseEdition().isSsoAutoLogin()) {
+            if (applicationProperties.getPremium().getProFeatures().isSsoAutoLogin()) {
                 return "redirect:" + request.getRequestURL() + saml2AuthenticationPath;
             } else {
                 providerList.put(saml2AuthenticationPath, samlIdp + " (SAML 2)");
@@ -188,14 +191,23 @@ public class AccountWebController {
         }
 
         if (request.getParameter("logout") != null) {
-            model.addAttribute("logoutMessage", "You have been logged out.");
+            model.addAttribute("logoutMessage", "login.logoutMessage");
         }
 
         return "login";
     }
 
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    @GetMapping("/addUsers")
+    @GetMapping("/usage")
+    public String showUsage() {
+        if (!runningEE) {
+            return "error";
+        }
+        return "usage";
+    }
+
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @GetMapping("/adminSettings")
     public String showAddUserForm(
             HttpServletRequest request, Model model, Authentication authentication) {
         List<User> allUsers = userRepository.findAll();
@@ -273,7 +285,7 @@ public class AccountWebController {
                                         return u2LastRequest.compareTo(u1LastRequest);
                                     }
                                 })
-                        .collect(Collectors.toList());
+                        .toList();
         String messageType = request.getParameter("messageType");
 
         String deleteMessage;
@@ -318,7 +330,9 @@ public class AccountWebController {
         model.addAttribute("totalUsers", allUsers.size());
         model.addAttribute("activeUsers", activeUsers);
         model.addAttribute("disabledUsers", disabledUsers);
-        return "addUsers";
+
+        model.addAttribute("maxPaidUsers", applicationProperties.getPremium().getMaxUsers());
+        return "adminSettings";
     }
 
     @PreAuthorize("!hasAuthority('ROLE_DEMO_USER')")

@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
@@ -25,18 +27,24 @@ import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 
 import stirling.software.SPDF.UI.WebBrowser;
-import stirling.software.SPDF.config.ConfigInitializer;
-import stirling.software.SPDF.config.InstallationPathConfig;
-import stirling.software.SPDF.model.ApplicationProperties;
-import stirling.software.SPDF.utils.UrlUtils;
+import stirling.software.common.configuration.ConfigInitializer;
+import stirling.software.common.configuration.InstallationPathConfig;
+import stirling.software.common.model.ApplicationProperties;
+import stirling.software.common.util.UrlUtils;
 
 @Slf4j
 @EnableScheduling
-@SpringBootApplication
+@SpringBootApplication(
+        scanBasePackages = {"stirling.software.common", "stirling.software.SPDF"},
+        exclude = {
+            DataSourceAutoConfiguration.class,
+            DataSourceTransactionManagerAutoConfiguration.class
+        })
 public class SPDFApplication {
 
     private static String serverPortStatic;
     private static String baseUrlStatic;
+    private static String contextPathStatic;
 
     private final Environment env;
     private final ApplicationProperties applicationProperties;
@@ -44,6 +52,9 @@ public class SPDFApplication {
 
     @Value("${baseUrl:http://localhost}")
     private String baseUrl;
+
+    @Value("${server.servlet.context-path:/}")
+    private String contextPath;
 
     public SPDFApplication(
             Environment env,
@@ -138,7 +149,8 @@ public class SPDFApplication {
     @PostConstruct
     public void init() {
         baseUrlStatic = this.baseUrl;
-        String url = baseUrl + ":" + getStaticPort();
+        contextPathStatic = this.contextPath;
+        String url = baseUrl + ":" + getStaticPort() + contextPath;
         if (webBrowser != null
                 && Boolean.parseBoolean(System.getProperty("STIRLING_PDF_DESKTOP_UI", "false"))) {
             webBrowser.initWebUI(url);
@@ -195,7 +207,7 @@ public class SPDFApplication {
 
     private static void printStartupLogs() {
         log.info("Stirling-PDF Started.");
-        String url = baseUrlStatic + ":" + getStaticPort();
+        String url = baseUrlStatic + ":" + getStaticPort() + contextPathStatic;
         log.info("Navigate to {}", url);
     }
 
@@ -219,5 +231,9 @@ public class SPDFApplication {
 
     public static String getStaticPort() {
         return serverPortStatic;
+    }
+
+    public static String getStaticContextPath() {
+        return contextPathStatic;
     }
 }

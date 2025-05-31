@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -19,7 +18,6 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import org.apache.pdfbox.pdmodel.interactive.form.PDField;
 import org.apache.pdfbox.pdmodel.interactive.form.PDSignatureField;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,25 +28,22 @@ import org.springframework.web.multipart.MultipartFile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import stirling.software.SPDF.model.api.general.MergePdfsRequest;
-import stirling.software.SPDF.service.CustomPDFDocumentFactory;
-import stirling.software.SPDF.utils.GeneralUtils;
-import stirling.software.SPDF.utils.WebResponseUtils;
+import stirling.software.common.service.CustomPDFDocumentFactory;
+import stirling.software.common.util.GeneralUtils;
+import stirling.software.common.util.WebResponseUtils;
 
 @RestController
 @Slf4j
 @RequestMapping("/api/v1/general")
 @Tag(name = "General", description = "General APIs")
+@RequiredArgsConstructor
 public class MergeController {
 
     private final CustomPDFDocumentFactory pdfDocumentFactory;
-
-    @Autowired
-    public MergeController(CustomPDFDocumentFactory pdfDocumentFactory) {
-        this.pdfDocumentFactory = pdfDocumentFactory;
-    }
 
     // Merges a list of PDDocument objects into a single PDDocument
     public PDDocument mergeDocuments(List<PDDocument> documents) throws IOException {
@@ -122,38 +117,40 @@ public class MergeController {
                     "This endpoint merges multiple PDF files into a single PDF file. The merged"
                             + " file will contain all pages from the input files in the order they were"
                             + " provided. Input:PDF Output:PDF Type:MISO")
-    public ResponseEntity<byte[]> mergePdfs(@ModelAttribute MergePdfsRequest form)
+    public ResponseEntity<byte[]> mergePdfs(@ModelAttribute MergePdfsRequest request)
             throws IOException {
         List<File> filesToDelete = new ArrayList<>(); // List of temporary files to delete
-        ByteArrayOutputStream docOutputstream =
-                new ByteArrayOutputStream(); // Stream for the merged document
+        File mergedTempFile = null;
         PDDocument mergedDocument = null;
 
-        boolean removeCertSign = form.isRemoveCertSign();
+        boolean removeCertSign = Boolean.TRUE.equals(request.getRemoveCertSign());
 
         try {
-            MultipartFile[] files = form.getFileInput();
+            MultipartFile[] files = request.getFileInput();
             Arrays.sort(
                     files,
                     getSortComparator(
-                            form.getSortType())); // Sort files based on the given sort type
+                            request.getSortType())); // Sort files based on the given sort type
 
             PDFMergerUtility mergerUtility = new PDFMergerUtility();
+            long totalSize = 0;
             for (MultipartFile multipartFile : files) {
+                totalSize += multipartFile.getSize();
                 File tempFile =
                         GeneralUtils.convertMultipartFileToFile(
                                 multipartFile); // Convert MultipartFile to File
                 filesToDelete.add(tempFile); // Add temp file to the list for later deletion
                 mergerUtility.addSource(tempFile); // Add source file to the merger utility
             }
-            mergerUtility.setDestinationStream(
-                    docOutputstream); // Set the output stream for the merged document
-            mergerUtility.mergeDocuments(null); // Merge the documents
 
-            byte[] mergedPdfBytes = docOutputstream.toByteArray(); // Get merged document bytes
+            mergedTempFile = Files.createTempFile("merged-", ".pdf").toFile();
+            mergerUtility.setDestinationFileName(mergedTempFile.getAbsolutePath());
+
+            mergerUtility.mergeDocuments(
+                    pdfDocumentFactory.getStreamCacheFunction(totalSize)); // Merge the documents
 
             // Load the merged PDF document
-            mergedDocument = pdfDocumentFactory.load(mergedPdfBytes);
+            mergedDocument = pdfDocumentFactory.load(mergedTempFile);
 
             // Remove signatures if removeCertSign is true
             if (removeCertSign) {
@@ -163,7 +160,7 @@ public class MergeController {
                     List<PDField> fieldsToRemove =
                             acroForm.getFields().stream()
                                     .filter(field -> field instanceof PDSignatureField)
-                                    .collect(Collectors.toList());
+                                    .toList();
 
                     if (!fieldsToRemove.isEmpty()) {
                         acroForm.flatten(
@@ -180,21 +177,23 @@ public class MergeController {
             String mergedFileName =
                     files[0].getOriginalFilename().replaceFirst("[.][^.]+$", "")
                             + "_merged_unsigned.pdf";
-            return WebResponseUtils.bytesToWebResponse(
-                    baos.toByteArray(), mergedFileName); // Return the modified PDF
+            return WebResponseUtils.boasToWebResponse(
+                    baos, mergedFileName); // Return the modified PDF
 
         } catch (Exception ex) {
             log.error("Error in merge pdf process", ex);
             throw ex;
         } finally {
+            if (mergedDocument != null) {
+                mergedDocument.close(); // Close the merged document
+            }
             for (File file : filesToDelete) {
                 if (file != null) {
                     Files.deleteIfExists(file.toPath()); // Delete temporary files
                 }
             }
-            docOutputstream.close();
-            if (mergedDocument != null) {
-                mergedDocument.close(); // Close the merged document
+            if (mergedTempFile != null) {
+                Files.deleteIfExists(mergedTempFile.toPath());
             }
         }
     }

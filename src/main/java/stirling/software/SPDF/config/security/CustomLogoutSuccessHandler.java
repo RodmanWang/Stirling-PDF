@@ -19,20 +19,20 @@ import com.coveo.saml.SamlException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import stirling.software.SPDF.SPDFApplication;
 import stirling.software.SPDF.config.security.saml2.CertificateUtils;
 import stirling.software.SPDF.config.security.saml2.CustomSaml2AuthenticatedPrincipal;
-import stirling.software.SPDF.model.ApplicationProperties;
-import stirling.software.SPDF.model.ApplicationProperties.Security.OAUTH2;
-import stirling.software.SPDF.model.ApplicationProperties.Security.SAML2;
-import stirling.software.SPDF.model.provider.KeycloakProvider;
-import stirling.software.SPDF.utils.UrlUtils;
+import stirling.software.common.model.ApplicationProperties;
+import stirling.software.common.model.ApplicationProperties.Security.OAUTH2;
+import stirling.software.common.model.ApplicationProperties.Security.SAML2;
+import stirling.software.common.model.oauth2.KeycloakProvider;
+import stirling.software.common.util.UrlUtils;
 
 @Slf4j
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class CustomLogoutSuccessHandler extends SimpleUrlLogoutSuccessHandler {
 
     public static final String LOGOUT_PATH = "/login?logout=true";
