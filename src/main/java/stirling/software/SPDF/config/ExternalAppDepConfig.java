@@ -12,6 +12,8 @@ import jakarta.annotation.PostConstruct;
 
 import lombok.extern.slf4j.Slf4j;
 
+import stirling.software.common.configuration.RuntimePathConfig;
+
 @Configuration
 @Slf4j
 public class ExternalAppDepConfig {
@@ -62,7 +64,7 @@ public class ExternalAppDepConfig {
     private List<String> getAffectedFeatures(String group) {
         return endpointConfiguration.getEndpointsForGroup(group).stream()
                 .map(endpoint -> formatEndpointAsFeature(endpoint))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     private String formatEndpointAsFeature(String endpoint) {

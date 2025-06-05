@@ -153,22 +153,32 @@ document.getElementById("submitConfigBtn").addEventListener("click", function ()
 let apiDocs = {};
 let apiSchemas = {};
 let operationSettings = {};
+let operationStatus = {};
 
 fetchWithCsrf("v1/api-docs")
   .then((response) => response.json())
   .then((data) => {
     apiDocs = data.paths;
     apiSchemas = data.components.schemas;
-    let operationsDropdown = document.getElementById("operationsDropdown");
+    return fetchWithCsrf("api/v1/settings/get-endpoints-status")
+      .then((response) => response.json())
+      .then((data) => {
+        operationStatus = data;
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+      });
+  })
+  .then(() => {
     const ignoreOperations = ["/api/v1/pipeline/handleData", "/api/v1/pipeline/operationToIgnore"]; // Add the operations you want to ignore here
-
+    let operationsDropdown = document.getElementById("operationsDropdown");
     operationsDropdown.innerHTML = "";
 
     let operationsByTag = {};
 
     // Group operations by tags
-    Object.keys(data.paths).forEach((operationPath) => {
-      let operation = data.paths[operationPath].post;
+    Object.keys(apiDocs).forEach((operationPath) => {
+      let operation = apiDocs[operationPath].post;
       if (!operation || !operation.description) {
         console.log(operationPath);
       }
@@ -209,13 +219,19 @@ fetchWithCsrf("v1/api-docs")
           }
           operationPathDisplay = operationPathDisplay.replaceAll(" ", "-");
           option.textContent = operationPathDisplay;
-          option.value = operationPath; // Keep the value with slashes for querying
-          group.appendChild(option);
+
+          if (!(operationPathDisplay in operationStatus)) {
+            option.value = operationPath; // Keep the value with slashes for querying
+            group.appendChild(option);
+          }
         });
 
         operationsDropdown.appendChild(group);
       }
     });
+  })
+  .catch((error) => {
+    console.error("Error:", error);
   });
 
 document.getElementById('deletePipelineBtn').addEventListener('click', function(event) {
@@ -283,21 +299,42 @@ document.getElementById("addOperationBtn").addEventListener("click", function ()
     }
   }
 
-  listItem.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center w-100">
-          <div class="operationName">${selectedOperation}</div>
-          <div class="arrows d-flex">
-              <button class="btn btn-secondary move-up ms-1"><span class="material-symbols-rounded">arrow_upward</span></button>
-              <button class="btn btn-secondary move-down ms-1"><span class="material-symbols-rounded">arrow_downward</span></button>
-              <button class="btn ${hasSettings ? "btn-warning" : "btn-secondary"} pipelineSettings ms-1" ${
-                hasSettings ? "" : "disabled"
-              }>
-              <span class="material-symbols-rounded">settings</span>
-          </button>
-              <button class="btn btn-danger remove ms-1"><span class="material-symbols-rounded">close</span></button>
-          </div>
-      </div>
-  `;
+  let containerDiv = document.createElement("div");
+  containerDiv.className = "d-flex justify-content-between align-items-center w-100";
+
+  let operationNameDiv = document.createElement("div");
+  operationNameDiv.className = "operationName";
+  operationNameDiv.textContent = selectedOperation;
+  containerDiv.appendChild(operationNameDiv);
+
+  let arrowsDiv = document.createElement("div");
+  arrowsDiv.className = "arrows d-flex";
+
+  let moveUpButton = document.createElement("button");
+  moveUpButton.className = "btn btn-secondary move-up ms-1";
+  moveUpButton.innerHTML = '<span class="material-symbols-rounded">arrow_upward</span>';
+  arrowsDiv.appendChild(moveUpButton);
+
+  let moveDownButton = document.createElement("button");
+  moveDownButton.className = "btn btn-secondary move-down ms-1";
+  moveDownButton.innerHTML = '<span class="material-symbols-rounded">arrow_downward</span>';
+  arrowsDiv.appendChild(moveDownButton);
+
+  let settingsButton = document.createElement("button");
+  settingsButton.className = `btn ${hasSettings ? "btn-warning" : "btn-secondary"} pipelineSettings ms-1`;
+  if (!hasSettings) {
+    settingsButton.disabled = true;
+  }
+  settingsButton.innerHTML = '<span class="material-symbols-rounded">settings</span>';
+  arrowsDiv.appendChild(settingsButton);
+
+  let removeButton = document.createElement("button");
+  removeButton.className = "btn btn-danger remove ms-1";
+  removeButton.innerHTML = '<span class="material-symbols-rounded">close</span>';
+  arrowsDiv.appendChild(removeButton);
+
+  containerDiv.appendChild(arrowsDiv);
+  listItem.appendChild(containerDiv);
 
   pipelineList.appendChild(listItem);
 

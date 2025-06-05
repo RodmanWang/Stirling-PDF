@@ -5,7 +5,6 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -29,28 +28,23 @@ import io.github.pixee.security.Filenames;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import stirling.software.SPDF.model.ApplicationProperties;
 import stirling.software.SPDF.model.api.misc.ProcessPdfWithOcrRequest;
-import stirling.software.SPDF.service.CustomPDFDocumentFactory;
+import stirling.software.common.model.ApplicationProperties;
+import stirling.software.common.service.CustomPDFDocumentFactory;
 
 @RestController
 @RequestMapping("/api/v1/misc")
 @Tag(name = "Misc", description = "Miscellaneous APIs")
 @Slf4j
+@RequiredArgsConstructor
 public class OCRController {
 
     private final ApplicationProperties applicationProperties;
 
     private final CustomPDFDocumentFactory pdfDocumentFactory;
-
-    public OCRController(
-            ApplicationProperties applicationProperties,
-            CustomPDFDocumentFactory pdfDocumentFactory) {
-        this.applicationProperties = applicationProperties;
-        this.pdfDocumentFactory = pdfDocumentFactory;
-    }
 
     /** Gets the list of available Tesseract languages from the tessdata directory */
     public List<String> getAvailableTesseractLanguages() {
@@ -62,8 +56,8 @@ public class OCRController {
         return Arrays.stream(files)
                 .filter(file -> file.getName().endsWith(".traineddata"))
                 .map(file -> file.getName().replace(".traineddata", ""))
-                .filter(lang -> !lang.equalsIgnoreCase("osd"))
-                .collect(Collectors.toList());
+                .filter(lang -> !"osd".equalsIgnoreCase(lang))
+                .toList();
     }
 
     @PostMapping(consumes = "multipart/form-data", value = "/ocr-pdf")

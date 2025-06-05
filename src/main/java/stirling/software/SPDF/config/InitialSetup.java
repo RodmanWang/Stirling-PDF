@@ -14,21 +14,19 @@ import io.micrometer.common.util.StringUtils;
 
 import jakarta.annotation.PostConstruct;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import stirling.software.SPDF.model.ApplicationProperties;
-import stirling.software.SPDF.utils.GeneralUtils;
+import stirling.software.common.model.ApplicationProperties;
+import stirling.software.common.util.GeneralUtils;
 
 @Component
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
+@RequiredArgsConstructor
 public class InitialSetup {
 
     private final ApplicationProperties applicationProperties;
-
-    public InitialSetup(ApplicationProperties applicationProperties) {
-        this.applicationProperties = applicationProperties;
-    }
 
     @PostConstruct
     public void init() throws IOException {
@@ -75,7 +73,7 @@ public class InitialSetup {
         // Initialize Terms and Conditions
         String termsUrl = applicationProperties.getLegal().getTermsAndConditions();
         if (StringUtils.isEmpty(termsUrl)) {
-            String defaultTermsUrl = "https://www.stirlingpdf.com/terms-and-conditions";
+            String defaultTermsUrl = "https://www.stirlingpdf.com/terms";
             GeneralUtils.saveKeyToSettings("legal.termsAndConditions", defaultTermsUrl);
             applicationProperties.getLegal().setTermsAndConditions(defaultTermsUrl);
         }

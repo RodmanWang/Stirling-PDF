@@ -4,7 +4,6 @@ import java.io.IOException;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -17,25 +16,23 @@ import io.github.pixee.security.Filenames;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import stirling.software.SPDF.model.api.PDFFile;
+import lombok.RequiredArgsConstructor;
+
 import stirling.software.SPDF.model.api.converters.PdfToPresentationRequest;
 import stirling.software.SPDF.model.api.converters.PdfToTextOrRTFRequest;
 import stirling.software.SPDF.model.api.converters.PdfToWordRequest;
-import stirling.software.SPDF.service.CustomPDFDocumentFactory;
-import stirling.software.SPDF.utils.PDFToFile;
-import stirling.software.SPDF.utils.WebResponseUtils;
+import stirling.software.common.model.api.PDFFile;
+import stirling.software.common.service.CustomPDFDocumentFactory;
+import stirling.software.common.util.PDFToFile;
+import stirling.software.common.util.WebResponseUtils;
 
 @RestController
 @RequestMapping("/api/v1/convert")
 @Tag(name = "Convert", description = "Convert APIs")
+@RequiredArgsConstructor
 public class ConvertPDFToOffice {
 
     private final CustomPDFDocumentFactory pdfDocumentFactory;
-
-    @Autowired
-    public ConvertPDFToOffice(CustomPDFDocumentFactory pdfDocumentFactory) {
-        this.pdfDocumentFactory = pdfDocumentFactory;
-    }
 
     @PostMapping(consumes = "multipart/form-data", value = "/pdf/presentation")
     @Operation(
@@ -100,9 +97,8 @@ public class ConvertPDFToOffice {
             description =
                     "This endpoint converts a PDF file to an XML file. Input:PDF Output:XML"
                             + " Type:SISO")
-    public ResponseEntity<byte[]> processPdfToXML(@ModelAttribute PDFFile request)
-            throws Exception {
-        MultipartFile inputFile = request.getFileInput();
+    public ResponseEntity<byte[]> processPdfToXML(@ModelAttribute PDFFile file) throws Exception {
+        MultipartFile inputFile = file.getFileInput();
 
         PDFToFile pdfToFile = new PDFToFile();
         return pdfToFile.processPdfToOfficeFormat(inputFile, "xml", "writer_pdf_import");

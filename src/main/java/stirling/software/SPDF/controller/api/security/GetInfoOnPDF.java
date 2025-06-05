@@ -43,7 +43,6 @@ import org.apache.xmpbox.XMPMetadata;
 import org.apache.xmpbox.xml.DomXmpParser;
 import org.apache.xmpbox.xml.XmpParsingException;
 import org.apache.xmpbox.xml.XmpSerializer;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -59,26 +58,23 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import stirling.software.SPDF.model.api.PDFFile;
-import stirling.software.SPDF.service.CustomPDFDocumentFactory;
-import stirling.software.SPDF.utils.WebResponseUtils;
+import stirling.software.common.model.api.PDFFile;
+import stirling.software.common.service.CustomPDFDocumentFactory;
+import stirling.software.common.util.WebResponseUtils;
 
 @RestController
 @RequestMapping("/api/v1/security")
 @Slf4j
 @Tag(name = "Security", description = "Security APIs")
+@RequiredArgsConstructor
 public class GetInfoOnPDF {
 
     static ObjectMapper objectMapper = new ObjectMapper();
 
     private final CustomPDFDocumentFactory pdfDocumentFactory;
-
-    @Autowired
-    public GetInfoOnPDF(CustomPDFDocumentFactory pdfDocumentFactory) {
-        this.pdfDocumentFactory = pdfDocumentFactory;
-    }
 
     private static void addOutlinesToArray(PDOutlineItem outline, ArrayNode arrayNode) {
         if (outline == null) return;
@@ -93,6 +89,59 @@ public class GetInfoOnPDF {
             addOutlinesToArray(child, arrayNode);
             child = child.getNextSibling();
         }
+    }
+
+    /**
+     * Generates structured summary data about the PDF highlighting its unique characteristics such
+     * as encryption status, permission restrictions, and standards compliance.
+     *
+     * @param document The PDF document to analyze
+     * @return An ObjectNode containing structured summary data
+     */
+    private ObjectNode generatePDFSummaryData(PDDocument document) {
+        ObjectNode summaryData = objectMapper.createObjectNode();
+
+        // Check if encrypted
+        if (document.isEncrypted()) {
+            summaryData.put("encrypted", true);
+        }
+
+        // Check permissions
+        AccessPermission ap = document.getCurrentAccessPermission();
+        ArrayNode restrictedPermissions = objectMapper.createArrayNode();
+
+        if (!ap.canAssembleDocument()) restrictedPermissions.add("document assembly");
+        if (!ap.canExtractContent()) restrictedPermissions.add("content extraction");
+        if (!ap.canExtractForAccessibility()) restrictedPermissions.add("accessibility extraction");
+        if (!ap.canFillInForm()) restrictedPermissions.add("form filling");
+        if (!ap.canModify()) restrictedPermissions.add("modification");
+        if (!ap.canModifyAnnotations()) restrictedPermissions.add("annotation modification");
+        if (!ap.canPrint()) restrictedPermissions.add("printing");
+
+        if (restrictedPermissions.size() > 0) {
+            summaryData.set("restrictedPermissions", restrictedPermissions);
+            summaryData.put("restrictedPermissionsCount", restrictedPermissions.size());
+        }
+
+        // Check standard compliance
+        if (checkForStandard(document, "PDF/A")) {
+            summaryData.put("standardCompliance", "PDF/A");
+            summaryData.put("standardPurpose", "long-term archiving");
+        } else if (checkForStandard(document, "PDF/X")) {
+            summaryData.put("standardCompliance", "PDF/X");
+            summaryData.put("standardPurpose", "graphic exchange");
+        } else if (checkForStandard(document, "PDF/UA")) {
+            summaryData.put("standardCompliance", "PDF/UA");
+            summaryData.put("standardPurpose", "universal accessibility");
+        } else if (checkForStandard(document, "PDF/E")) {
+            summaryData.put("standardCompliance", "PDF/E");
+            summaryData.put("standardPurpose", "engineering workflows");
+        } else if (checkForStandard(document, "PDF/VT")) {
+            summaryData.put("standardCompliance", "PDF/VT");
+            summaryData.put("standardPurpose", "variable and transactional printing");
+        }
+
+        return summaryData;
     }
 
     public static boolean checkForStandard(PDDocument document, String standardKeyword) {
@@ -126,7 +175,8 @@ public class GetInfoOnPDF {
     @Operation(summary = "Summary here", description = "desc. Input:PDF Output:JSON Type:SISO")
     public ResponseEntity<byte[]> getPdfInfo(@ModelAttribute PDFFile request) throws IOException {
         MultipartFile inputFile = request.getFileInput();
-        try (PDDocument pdfBoxDoc = pdfDocumentFactory.load(inputFile); ) {
+        boolean readonly = true;
+        try (PDDocument pdfBoxDoc = pdfDocumentFactory.load(inputFile, readonly); ) {
             ObjectMapper objectMapper = new ObjectMapper();
             ObjectNode jsonOutput = objectMapper.createObjectNode();
 
@@ -193,6 +243,12 @@ public class GetInfoOnPDF {
                 }
             }
             jsonOutput.set("FormFields", formFieldsNode);
+
+            // Generate structured summary data about PDF characteristics
+            ObjectNode summaryData = generatePDFSummaryData(pdfBoxDoc);
+            if (summaryData != null && summaryData.size() > 0) {
+                jsonOutput.set("SummaryData", summaryData);
+            }
 
             // embeed files TODO size
             if (catalog.getNames() != null) {
