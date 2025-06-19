@@ -1,12 +1,11 @@
 # Main stage
-FROM alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c
+FROM alpine:3.22.0@sha256:8a1f59ffb675680d47db6337b49d22281a139e9d709335b492be023728e11715
 
 # Copy necessary files
 COPY scripts /scripts
 COPY pipeline /pipeline
-COPY src/main/resources/static/fonts/*.ttf /usr/share/fonts/opentype/noto/
-#COPY src/main/resources/static/fonts/*.otf /usr/share/fonts/opentype/noto/
-COPY build/libs/*.jar app.jar
+COPY stirling-pdf/src/main/resources/static/fonts/*.ttf /usr/share/fonts/opentype/noto/
+COPY stirling-pdf/build/libs/*.jar app.jar
 
 ARG VERSION_TAG
 
@@ -23,22 +22,18 @@ LABEL org.opencontainers.image.version="${VERSION_TAG}"
 LABEL org.opencontainers.image.keywords="PDF, manipulation, merge, split, convert, OCR, watermark"
 
 # Set Environment Variables
-ENV DOCKER_ENABLE_SECURITY=false \
+ENV DISABLE_ADDITIONAL_FEATURES=true \
     VERSION_TAG=$VERSION_TAG \
-    JAVA_TOOL_OPTIONS="-XX:+UnlockExperimentalVMOptions \
-    -XX:MaxRAMPercentage=75 \
-    -XX:InitiatingHeapOccupancyPercent=20 \
-    -XX:+G1PeriodicGCInvokesConcurrent \
-    -XX:G1PeriodicGCInterval=10000 \
-    -XX:+UseStringDeduplication \
-    -XX:G1PeriodicGCSystemLoadThreshold=70" \
+    JAVA_BASE_OPTS="-XX:+UnlockExperimentalVMOptions -XX:MaxRAMPercentage=75 -XX:InitiatingHeapOccupancyPercent=20 -XX:+G1PeriodicGCInvokesConcurrent -XX:G1PeriodicGCInterval=10000 -XX:+UseStringDeduplication -XX:G1PeriodicGCSystemLoadThreshold=70" \
+    JAVA_CUSTOM_OPTS="" \
     HOME=/home/stirlingpdfuser \
     PUID=1000 \
     PGID=1000 \
     UMASK=022 \
     PYTHONPATH=/usr/lib/libreoffice/program:/opt/venv/lib/python3.12/site-packages \
     UNO_PATH=/usr/lib/libreoffice/program \
-    URE_BOOTSTRAP=file:///usr/lib/libreoffice/program/fundamentalrc
+    URE_BOOTSTRAP=file:///usr/lib/libreoffice/program/fundamentalrc \
+    PATH=$PATH:/opt/venv/bin
 
 
 # JDK for app
@@ -66,6 +61,10 @@ RUN echo "@main https://dl-cdn.alpinelinux.org/alpine/edge/main" | tee -a /etc/a
     poppler-utils \
     # OCR MY PDF (unpaper for descew and other advanced features)
     tesseract-ocr-data-eng \
+    tesseract-ocr-data-chi_sim \
+	tesseract-ocr-data-deu \
+	tesseract-ocr-data-fra \
+	tesseract-ocr-data-por \
     # CV
     py3-opencv \
     python3 \
@@ -73,9 +72,8 @@ RUN echo "@main https://dl-cdn.alpinelinux.org/alpine/edge/main" | tee -a /etc/a
     py3-pillow@testing \
     py3-pdf2image@testing && \
     python3 -m venv /opt/venv && \
-    export PATH="/opt/venv/bin:$PATH" && \
-    pip install --upgrade pip && \
-    pip install --no-cache-dir --upgrade unoserver weasyprint && \
+    /opt/venv/bin/pip install --upgrade pip setuptools && \
+    /opt/venv/bin/pip install --no-cache-dir --upgrade unoserver weasyprint && \
     ln -s /usr/lib/libreoffice/program/uno.py /opt/venv/lib/python3.12/site-packages/ && \
     ln -s /usr/lib/libreoffice/program/unohelper.py /opt/venv/lib/python3.12/site-packages/ && \
     ln -s /usr/lib/libreoffice/program /opt/venv/lib/python3.12/site-packages/LibreOffice && \
@@ -93,4 +91,4 @@ EXPOSE 8080/tcp
 
 # Set user and run command
 ENTRYPOINT ["tini", "--", "/scripts/init.sh"]
-CMD ["sh", "-c", "java -Dfile.encoding=UTF-8 -jar /app.jar & /opt/venv/bin/unoserver --port 2003 --interface 0.0.0.0"]
+CMD ["sh", "-c", "java -Dfile.encoding=UTF-8 -jar /app.jar & /opt/venv/bin/unoserver --port 2003 --interface 127.0.0.1"]
