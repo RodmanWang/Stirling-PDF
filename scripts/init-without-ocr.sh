@@ -1,5 +1,8 @@
 #!/bin/bash
 
+export JAVA_TOOL_OPTIONS="${JAVA_BASE_OPTS} ${JAVA_CUSTOM_OPTS}"
+echo "running with JAVA_TOOL_OPTIONS ${JAVA_BASE_OPTS} ${JAVA_CUSTOM_OPTS}"
+
 # Update the user and group IDs as per environment variables
 if [ ! -z "$PUID" ] && [ "$PUID" != "$(id -u stirlingpdfuser)" ]; then
     usermod -o -u "$PUID" stirlingpdfuser || true
@@ -25,9 +28,11 @@ if [[ -n "$LANGS" ]]; then
 fi
 
 echo "Setting permissions and ownership for necessary directories..."
+# Ensure temp directory exists and has correct permissions
+mkdir -p /tmp/stirling-pdf || true
 # Attempt to change ownership of directories and files
-if chown -R stirlingpdfuser:stirlingpdfgroup $HOME /logs /scripts /usr/share/fonts/opentype/noto /configs /customFiles /pipeline /app.jar; then
-	chmod -R 755 /logs /scripts /usr/share/fonts/opentype/noto /configs /customFiles /pipeline /app.jar || true
+if chown -R stirlingpdfuser:stirlingpdfgroup $HOME /logs /scripts /usr/share/fonts/opentype/noto /configs /customFiles /pipeline /tmp/stirling-pdf /app.jar; then
+	chmod -R 755 /logs /scripts /usr/share/fonts/opentype/noto /configs /customFiles /pipeline /tmp/stirling-pdf /app.jar || true
     # If chown succeeds, execute the command as stirlingpdfuser
     exec su-exec stirlingpdfuser "$@"
 else
